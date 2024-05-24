@@ -1,28 +1,162 @@
 # Generative AI: Multi-strategy LLM Fine-tuning
 
-⚡ Adapting & Aligning LLM with multiple prompt engineering, fine-tuning and reinforcement learning feedback techniques💪
+⚡ Adapting & Aligning LLM with multiple prompt engineering, fine-tuning and reinforcement learning feedback techniques 💪
 
 ## Project Overview
 
-This Project consists of three Google colab notebooks.
+The project revolves around exploring state-of-the-art techniques for adapting and aligning Large Language Model (LLM) for a specific use case. It begins with evaluating prompt engineering techniques followed by fine-tuning for which I have performed Full Instruction Fine-Tuning as well as Parameter Efficient Fine Tuning (PEFT) such LoRA and Prompt tuning. Finally Reinforcement Learning with human feedback (RLHF) is employed to minimize toxicity and enhance the helpfulness of the generated responses.
+
+Due to computational cost, I have opted for Google's flan-t5-base LLM to fine-tune on the task of conversation summarization. However the process of fine-tuning any other LLM on any other task remains the same.
+
+This project consists of three Google colab notebooks.
 
 1. Prompt Engineering: [Fine_tuning_LLM_part_1](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_tuning_LLM_part_1.ipynb)- covers `Flan-t5-base` use case with various prompting strategies: zero-shot, one-shot and few-shot inference.
-2. Fine-tuning: [Fine_Tuning_LLM_part_2](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_Tuning_LLM_part_2.ipynb)- covers in-depth implementation of LLM fine-tuning including techniques such as full instruction fine-tuning, LoRA and Soft prompts along with model performance evaluation.
+2. Fine-tuning: [Fine_Tuning_LLM_part_2](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_Tuning_LLM_part_2.ipynb)- covers in-depth implementation of LLM fine-tuning including techniques such as full instruction fine-tuning, LoRA and Prompt Tuning along with model performance evaluation.
 3. RL feedback: [Fine_Tuning_LLM_part_3](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_Tuning_LLM_part_3.ipynb)- covers alignment of LLM to produce less toxic completion based on Reinforcement Learning feedback.
 
 **Note:**  
 
 1. For this project, I have chosen Google's [Flan-t5-base](https://huggingface.co/google/flan-t5-base) using bfloat16 floating point representation. The model has 248 million parameters.
-2. Due to high computational requirements, the training part of the notebooks cannot be performed on Colab. Instead, I trained the model on AWS SageMaker using an `ml.m5.2xl` instance. However, the notebook allows viewing the training procedure and using the model for inference on Colab.
-3. The model is fine-tuned for a specific use case: conversation summarization.
+2. The model is fine-tuned for a specific use case: conversation summarization.
+3. Due to high computational requirements, the training part of the notebooks cannot be performed on Colab. Instead, I trained the model on AWS SageMaker using an `ml.m5.2xl` instance. However, the notebook allows viewing the training procedure and using the model for inference on Colab.
 4. The dataset used is DialogSum from [HuggingFace](https://huggingface.co/datasets/knkarthick/dialogsum).
 5. Each notebook is highly descriptive, with context explanations, comments, and doc-strings for most functions.
 
-## Applied Concepts in detail
+## Prompt Engineering: Fine_tuning_LLM_part_1  
 
-### Prompt Engineering: Fine_tuning_LLM_part_1  
+Pre-training is the initial phase where a Large Language Model (LLM) is trained on a vast amount of text data to learn general language patterns, grammar, facts about the world, and some reasoning abilities. This stage involves training the model on a broad dataset, often using self-supervised learning techniques, to build a robust understanding of language.  
 
-### Prompt Engineering: Fine_tuning_LLM_part_2  
+## Prompt Engineering: Fine_tuning_LLM_part_2  
+
+Previously, we had explored various prompt engineering techniques and it is almost certain that a small LLM like flan-t5  may not meet the required benchmarks. To enhance performance, we can fine-tune the model for our specific use case(s). Fine-tuning opens a path for further improvement because the LLM is pre-trained for general purpose set of tasks, thus further training on a  particular use case on a domain-specific instruction dataset can help with even a comparatively smaller model.
+
+The goal is to achieve better understanding of the given task and generate an optimal response.  
+
+### Instruction Fine tuning
+
+1. The pre-training part of the LLM involves techniques such as `Masked Language Modelling`, `Casual Learning Modelling` and `Span Corruption` utilizing a huge corpus of unstructured data generally in TBs and PBs to learn general language patterns. Now, using instruction fine tuning we can further train an LLM to perform well in the task at hand.
+
+2. Limitation of in-context learning
+
+   2.1 Doesn't always work for smaller models  
+   2.2 Examples take up space in context window thus reducing room for other important useful information  
+
+3. Fine tuning is a supervised learning process where we use a dataset of labeled examples to update the weights of the LLM. The labeled examples are in a form of prompt completion pairs. It extends the training of the model to improve its ability to generate good completions for a specific task. Thus using examples we demonstrate the LLM, how it should respond to a specific instruction.  
+
+4. The dataset for training includes many pairs of prompt completion examples for the task at hand
+
+(pre-trained LLM -> prompt + completion -> Fine tuned LLM)
+
+![Full fine tuning process](images/fine-tuning_brief.png)  
+
+**Note:** just like pre-training, full fine-tuning requires enough memory and compute budget to store and process all the gradients, optimizers and other components that  are being updated during the training. Following are the memory requirements:  
+
+| Component                       | Memory Required per Parameter |
+|---------------------------------|-------------------------------|
+| LLM Parameter (float32)         | 4 Bytes                       |
+| Adam Optimizer                  | 8 Bytes                       |
+| Gradients                       | 4 Bytes                       |
+| Activations and Temp Memory     | 8 Bytes                       |
+
+**note:** float16/bfloat16 would require 2 Bytes and int8 and int4 would require 1 Byte and 0.5 Byte respectively.  
+
+#### Steps for training
+
+1. Prepare Dataset
+2. Perform data splitting - training, validation and test
+3. Pass the examples to the LLM to generate completions.
+4. Compare the distribution of the completion and that of the training label and use the standard `crossentropy` function to calculate loss between the two token distributions(As the output of an LLM is a probability distribution across tokens).  
+5. Use the calculated loss to update the model weights in standard back-propagation.
+6. As in standard supervised learning, using separate evaluation and test steps we can measure validation and test accuracy using the holdout validation the test data.  
+
+![Full fine tuning example](images/fine-tuning_example.png)  
+
+The fine-tuning process results in a new version of the base model, often called an instruct model that is better in the task at hand.
+
+### Parameter Efficient Fine Tuning (PEFT)
+
+Unlike full fine-tuning, which updates all model weights, Parameter Efficient Fine Tuning (PEFT) methods update only a subset. Some PEFT techniques freeze most weights and fine-tune specific layers or components, while others add new parameters or layers and fine-tune only those. This keeps most LLM weights frozen, significantly reducing the number of trained parameters to as little as 15-20% of the original, making memory requirements more manageable. Full fine-tuning is costly for each new task, but PEFT requires updating fewer weights, typically in MBs, resulting in much lower memory requirements.
+
+The new parameters are combined with the original LLM weights for inference. The PEFT weights are trained for each task and can be easily swapped out for inference, allowing efficient adaptation of the original model to multiple tasks.  
+
+PEFT is a generic term that includes Low-Rank Adaptation (LoRA) and prompt tuning (which is NOT THE SAME as prompt engineering!).
+In this project I have explored LoRa and Soft prompt (prompt tuning).  
+
+### LoRA
+
+In LoRA we freeze the LLMs weights and inject two rank decomposition matrices and only train weights of these smaller matrices. The key aspect here is to choose a rank, r for  both of the matrices to perform matrix multiplication. The result of the matmul should be a new matrix with dimensions equal to the `weight` matrix of the LLM.  
+
+LoRA, at a very high level, allows the user to fine-tune their model using fewer compute resources (in some cases, a single GPU). After fine-tuning for a specific task, use case, or tenant with LoRA, the result is that the original LLM remains unchanged and a newly-trained “LoRA adapter” emerges. This LoRA adapter is much, much smaller than the original LLM - on the order of a single-digit % of the original LLM size (MBs vs GBs).
+
+That said, at inference time, the LoRA adapter needs to be reunited and combined with its original LLM to serve the inference request. The benefit, however, is that many LoRA adapters can re-use the original LLM which reduces overall memory requirements when serving multiple tasks and use cases.
+
+#### Steps for LoRA
+
+1. Freeze most of the original LLM weights
+2. Inject two rank decomposition matrices
+3. Train the weights of the smaller matrices
+4. For inference, the two low-rank matrices are multiplied together to create a matrix with the same dimensions as the frozen weights.
+5. Add the resultant matrix to the original weights  
+
+![LoRA matrices](images/LoRA_matrices.png)  
+
+Example (in context to the original transformer architecture as mentioned in Attention is all you need paper)
+
+- Transformer weights have dimensions d*k = 512*64
+( d=dimension of the model's hidden layers, k=Dimension of Keys, Queries, and Values)
+- Trainable params = 512*64 = 32768
+
+Using LoRA with a rank r = 8
+
+- Matrix A has dimension r*k = 8*64 = 512 params
+- Matrix B has dimension d*r = 512*8 = 4096 params
+
+**resulting, a total reduction of 86% in parameters to train**  
+
+Likewise, we can train different rank decomposition matrices for different task then use them while inference
+
+By this procedure, LoRA introduces a new hyperparameter `r`.  Higher r values doesn't guarantee better performance. Various researches and original LoRA paper suggest the value of r to be someone where in the range of 8 and 64.
+
+![LoRA r Values](images/LoRA_r_vals.png)  
+
+It is evident that LoRA may not outperform full fine tuning but the results are comparable. More or less with the trade off in performance with so less computational requirements, LoRA could be a better choice.  
+
+### Prompt Tuning
+
+With prompt tuning, additional trainable tokens, called a soft prompt, are added to the prompt. These tokens are prepended to the embedding vectors representing the input text. Soft prompts have the same length as the language token embeddings and typically include between 20 and 100 virtual tokens for good performance.
+
+Unlike fixed natural language tokens, soft prompts are virtual tokens that can take any value within the continuous multidimensional embedding space. The model learns the optimal values for these tokens through supervised learning to maximize task performance. During this process, the weights of the large language model are frozen, and only the embedding vectors of the soft prompts are updated.
+
+Similar to LoRA, different sets of soft prompts can be trained for different tasks and swapped out during inference. To switch tasks, you prepend the input prompt with the learned tokens of the desired soft prompt
+
+So how well does prompt tuning perform? As in following graph from the research paper - [The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/abs/2104.08691) We can judge that prompt tuning may not perform well for lesser parameter models, however when parameters reaches the mark of 10 Billion or more, prompt tuning performance equal to or even better than the full fine tuning.
+
+![Soft prompt comparison graph](images/soft_prompt_comparison.png)  
+
+### Notebook implementation
+
+1. Dependencies:
+
+```python
+    torch==1.13.1 
+
+    torchdata==0.5.1
+
+    transformers==4.27.2 
+
+    evaluate==0.4.0 
+
+    rouge_score==0.1.2 
+
+    peft==0.3.0 
+
+```  
+
+1. Instruct LLM - `google/flan-t5-base`
+2. Dataset - `knkarthick/dialogsum`
+3. Full fine-tuning check point from my gdirve and huggingface
+4. PEFT check point from my gdirve
+5. Evaluation metric - `ROUGE`
 
 ### RL feedback: Fine_Tuning_LLM_part_3  
 
@@ -86,7 +220,7 @@ use the reward model as a binary classifier to provide reward value for each pro
 Reward -> logits (also the reward value) -> probability (by using softmax)  
 (Probability can be used to evaluate the toxicity score)  <br><br>
 8. For the Reinforcement Learning (explain PPO) <br><br>
-9. Model evaluation: below
+9. Model evaluation: [below](#evaluation)
 
 #### putting everything together
 
@@ -131,9 +265,10 @@ For this, prompts are fed into both the LLM i.e. the reference instruct LLM and 
 prompt -> instruct LLM -> completion -> reward model -> toxicity score (0.14)  
 prompt -> Human aligned LLM -> completion -> reward model -> toxicity score (0.09)  
 
-## Notebook implementation
+### Notebook implementation
 
 1. Dependencies:
+
 ```python
     torch==1.13.1 
 
@@ -149,8 +284,9 @@ prompt -> Human aligned LLM -> completion -> reward model -> toxicity score (0.0
 
     trl ## from github
 ```  
-2. Instruct LLM - `google/flan-t5-base`
-3. Dataset - `knkarthick/dialogsum`
-4. Pre-trained PEFT check point from my gdirve
-5. `PPO` as the RL algorithm
-6. Reward model - `facebook/roberta-hate-speech-dynabench-r4-target`
+
+1. Instruct LLM - `google/flan-t5-base`
+2. Dataset - `knkarthick/dialogsum`
+3. PEFT check point from my gdirve
+4. `PPO` as the RL algorithm
+5. Reward model - `facebook/roberta-hate-speech-dynabench-r4-target`
