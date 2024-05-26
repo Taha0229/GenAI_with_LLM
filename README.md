@@ -81,7 +81,8 @@ The goal is to achieve better understanding of the given task and generate an op
 
 ![Full fine tuning process](images/fine-tuning_brief.png)  
 
-**Note:** just like pre-training, full fine-tuning requires enough memory and compute budget to store and process all the gradients, optimizers and other components that  are being updated during the training. Following are the memory requirements:  
+**Note:** just like pre-training, full fine-tuning requires enough memory and compute budget to store and process all the gradients, optimizers and other components that  are being updated during the training.  
+Following are the general memory requirements for an LLM (higher end):  
 
 | Component                       | Memory Required per Parameter |
 |---------------------------------|-------------------------------|
@@ -89,6 +90,15 @@ The goal is to achieve better understanding of the given task and generate an op
 | Adam Optimizer                  | 8 Bytes                       |
 | Gradients                       | 4 Bytes                       |
 | Activations and Temp Memory     | 8 Bytes                       |
+
+Following are the specific memory requirements for `google/flan-t5-base` with `bfloat16` and a `batch size` of one:
+
+| Component                       | Memory Required per Parameter |
+|---------------------------------|-------------------------------|
+| LLM Parameter (float32)         | 850.3 MB or 0.830 GB          |
+| Adam Optimizer                  | 1.66 GB * `batch_size`        |
+| Back Propagation + Misc         | 0.83 GB * `batch_size`        |
+|  Total                          | 3.32 GB (for `batch_size=1`)  |
 
 **note:** float16/bfloat16 would require 2 Bytes and int8 and int4 would require 1 Byte and 0.5 Byte respectively.  
 
@@ -124,7 +134,7 @@ That said, at inference time, the LoRA adapter needs to be reunited and combined
 
 #### Steps for LoRA
 
-1. Freeze most of the original LLM weights
+1. Freeze most of the original LLM wights
 2. Inject two rank decomposition matrices
 3. Train the weights of the smaller matrices
 4. For inference, the two low-rank matrices are multiplied together to create a matrix with the same dimensions as the frozen weights.
