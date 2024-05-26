@@ -10,7 +10,7 @@ Due to computational cost, I have opted for Google's flan-t5-base LLM to fine-tu
 
 This project consists of three Google colab notebooks.
 
-1. Prompt Engineering: [Fine_tuning_LLM_part_1](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_tuning_LLM_part_1.ipynb)- covers `Flan-t5-base` use case with various prompting strategies: zero-shot, one-shot and few-shot inference.
+1. In-context Learning: [Fine_tuning_LLM_part_1](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_tuning_LLM_part_1.ipynb)- covers `Flan-t5-base` use case with various prompting strategies: zero-shot, one-shot and few-shot inference.
 2. Fine-tuning: [Fine_Tuning_LLM_part_2](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_Tuning_LLM_part_2.ipynb)- covers in-depth implementation of LLM fine-tuning including techniques such as full instruction fine-tuning, LoRA and Prompt Tuning along with model performance evaluation.
 3. RL feedback: [Fine_Tuning_LLM_part_3](https://github.com/Taha0229/finetuning_LLM/blob/main/Fine_Tuning_LLM_part_3.ipynb)- covers alignment of LLM to produce less toxic completion based on Reinforcement Learning feedback.
 
@@ -18,15 +18,47 @@ This project consists of three Google colab notebooks.
 
 1. For this project, I have chosen Google's [Flan-t5-base](https://huggingface.co/google/flan-t5-base) using bfloat16 floating point representation. The model has 248 million parameters.
 2. The model is fine-tuned for a specific use case: conversation summarization.
-3. Due to high computational requirements, the training part of the notebooks cannot be performed on Colab. Instead, I trained the model on AWS SageMaker using an `ml.m5.2xl` instance. However, the notebook allows viewing the training procedure and using the model for inference on Colab.
+3. Due to the extensive computational demands, full training cannot be conducted on Colab. To demonstrate the training process, I trained the model for 100 epochs using a subset of the data (208 examples) with the resources I had available. However, I completed the full training on AWS SageMaker utilizing an `ml.m5.2xl` instance. The notebook provides a view of the training process and enables the model to be used for inference on Colab.
 4. The dataset used is DialogSum from [HuggingFace](https://huggingface.co/datasets/knkarthick/dialogsum).
 5. Each notebook is highly descriptive, with context explanations, comments, and doc-strings for most functions.
 
-## Prompt Engineering: Fine_tuning_LLM_part_1  
+## In-context Learning: Fine_tuning_LLM_part_1  
 
 Pre-training is the initial phase where a Large Language Model (LLM) is trained on a vast amount of text data to learn general language patterns, grammar, facts about the world, and some reasoning abilities. This stage involves training the model on a broad dataset, often using self-supervised learning techniques, to build a robust understanding of language.  
 
-## Prompt Engineering: Fine_tuning_LLM_part_2  
+Afterwards, the LLM is fine-tuned to generate appropriate responses on multi-task because during pre-training, its objective is to predict the next token based on probability distribution. By fine-tuning the model, we can leverage it for in-context learning (prompt-engineering). With in-context learning, we enhance the LLM's understanding of the given task by including examples or additional data in the prompt. Following are the types of in-context learning aka prompt engineering.
+
+zero-shot: Zero-shot learning refers to the model's ability to perform a task it has never explicitly seen before. The model uses its general understanding of language and concepts to make predictions without specific examples. Here we only explain the task at hand with a prompt structure.  
+Example:
+
+```python
+Prompt              --->        LLM        --->        Completion
+Classify this review:                                  Sentiment: Love
+I love this movie!
+Sentiment
+```
+
+It is also worth noting that, smaller models often doesn't perform well or as per the requirements with zero-shot learning.  
+
+one-shot:  In one-shot learning, a single example is provided in the prompt i.e. prompt along with desired response.
+Example:
+
+```python
+Prompt              
+Classify this review:                                  
+I love this movie!
+Sentiment: Positive
+                            --->        LLM        --->        Completion 
+Classify this review:                                      Sentiment: Negative
+I don't like this movie!
+Sentiment
+```
+
+few-shot:  And finally, if more than one example is provided then it is called few-shot learning
+
+If model is not performing well even after getting 5-6 examples then it is highly recommended to opt for model fine-tuning.
+
+## Fine-tuning: Fine_tuning_LLM_part_2  
 
 Previously, we had explored various prompt engineering techniques and it is almost certain that a small LLM like flan-t5  may not meet the required benchmarks. To enhance performance, we can fine-tune the model for our specific use case(s). Fine-tuning opens a path for further improvement because the LLM is pre-trained for general purpose set of tasks, thus further training on a  particular use case on a domain-specific instruction dataset can help with even a comparatively smaller model.
 
@@ -174,7 +206,7 @@ iii. Natural sounding human language.
 ![Learning to summarize from human feedback](images/HF_comparison_graph.png)  
 
 4. The above mentioned challenges can be resolved by introducing new sets of fine-tuning parameters: Helpfulness, Honesty and Harmlessness for responsible use
-
+   
 5. The RLHF loop in a nutshell-  
 `Instruct model` -> `RLHF` -> `Human aligned model`; This can help maximizing helpfulness, relevance, minimizing harm, avoid dangerous topics on top of that RLHF could also help with personalized response.
 
@@ -184,29 +216,35 @@ iii. Natural sounding human language.
 
 #### Workflow with Human labeler
 
-1. Select an instruct LLM, in our case it happens to be `flan-T5-base` <br><br>
-2. Gather prompt dataset. In our case, since we are fine-tuning it in only one task i.e. conversation summarization, the prompt is `Summarize the following conversation`<br><br>
-3. Pass the prompts to the LLM to generate a set of completions <br><br>
+1. Select an instruct LLM, in our case it happens to be `flan-T5-base`  
+   
+2. Gather prompt dataset. In our case, since we are fine-tuning it in only one task i.e. conversation summarization, the prompt is `Summarize the following conversation`
+   
+3. Pass the prompts to the LLM to generate a set of completions  
+   
 4. Collect feedback from human labeler  
-4.1 Define model alignment criterion  
-4.2 obtain human feedback through labeler workforce for the prompt-response sets  
-Eg:  
-Prompt (My house is too hot) -> LLM -> generates three completion  
-alignment criterion: helpfulness- labeler will rank from most helpful to least helpful as the following  
-rank 1 (best) > rank 2 > rank 3 (worst)  
-The process is performed on multiple completion and each completion is labeled by multiple labeler to form a consensus to achieve a much more diverse dataset.
-For the whole procedure on how to label the completion, human labeler gets an instruction document for labelling.<br><br>
+    4.1 Define model alignment criterion  
+    4.2 obtain human feedback through labeler workforce for the prompt-response sets  
+    Eg:  
+    Prompt (My house is too hot) -> LLM -> generates three completion  
+    alignment criterion: helpfulness- labeler will rank from most helpful to least helpful as the following  
+    rank 1 (best) > rank 2 > rank 3 (worst)  
+    The process is performed on multiple completion and each completion is labeled by multiple labeler to form a consensus to achieve a much more diverse dataset.
+    For the whole procedure on how to label the completion, human labeler gets an instruction document for labelling.
+
 5. prepare labeled data for training  
-5.1 Convert ranked completion into pairwise training data for the reward model.  
-Prompt + completion -> Ranks by human (Example: completion 1 is ranked 2, completion 2 is ranked 1 and completion 3 is ranked 3) -> Create a completion pair Completion (for 3 completions possible pairs are)  
-1,2 -> reward (0,1)  
-1,3 -> reward (1,0)  
-2,3 -> reward (1,0)  
-5.2 Reorder so preferred option comes first  
-2, 1 -> reward (1,0)  
-1,3 -> reward (1,0)  
-2,3 -> reward (1,0)  
-(yj, yk) -> (preferred, not preferred)  <br><br>
+    5.1 Convert ranked completion into pairwise training data for the reward model.  
+    Prompt + completion -> Ranks by human (Example: completion 1 is ranked 2, completion 2 is ranked 1 and completion 3 is ranked 3) -> Create a completion pair Completion (for 3 completions possible pairs are)  
+    1,2 -> reward (0,1)  
+    1,3 -> reward (1,0)  
+    2,3 -> reward (1,0)  
+
+    5.2 Reorder so preferred option comes first  
+    2, 1 -> reward (1,0)  
+    1,3 -> reward (1,0)  
+    2,3 -> reward (1,0)  
+    (yj, yk) -> (preferred, not preferred)  
+
 6. Training Reward Model  
 Train a model to predict preferred completion from {yj,yk} ranked completion paris for prompt x  
 (Prompt x + completion yj) + (Prompt x + completion yk) --> Reward Model --> (Reward rj) + (Reward rk) 
@@ -214,12 +252,22 @@ Train a model to predict preferred completion from {yj,yk} ranked completion par
 ![Reward Model Training](images/reward_model_training.png)  
 
 Here, the Goal is to prioritize human preferred completions i.e. `yj`  
-How? By minimizing loss = log(sigmoid(rj - rk)) <br><br>
+How? By minimizing loss = log(sigmoid(rj - rk))  
+
 7. Use the reward model  
 use the reward model as a binary classifier to provide reward value for each prompt-completion pair. The reward model outputs logits which is used as the reward for the LLM being trained.  
 Reward -> logits (also the reward value) -> probability (by using softmax)  
-(Probability can be used to evaluate the toxicity score)  <br><br>
-8. For the Reinforcement Learning (explain PPO) <br><br>
+(Probability can be used to evaluate the toxicity score)  
+
+8. For the Reinforcement Learning policy I have used PPO:  
+Proximal Policy Optimization (PPO) is a state-of-the-art algorithm in reinforcement learning, designed to enhance both the stability and efficiency of training agents. Reinforcement learning involves training an agent to make a sequence of decisions that maximize cumulative rewards in a given environment. PPO addresses several challenges inherent in this process, particularly the instability and inefficiency that can arise during policy updates.
+
+A fundamental aspect of PPO is its approach to policy updates. In reinforcement learning, policies dictate the actions an agent takes based on its observations. PPO limits the extent to which these policies can change with each update, ensuring that the training process remains stable. This is achieved through a surrogate objective function that penalizes large deviations from the current policy, helping maintain a balance between exploring new strategies and exploiting known successful ones without making disruptive changes.
+
+One of the key innovations in PPO is its clipping mechanism. This mechanism adjusts the objective function to include a term that prevents the new policy from diverging significantly from the old policy. By clipping the probability ratio between the new and old policies, PPO prevents excessively large updates that could destabilize the agent's performance. This method simplifies the optimization process while ensuring that updates remain within a safe and effective range.
+
+PPO is also designed to be sample efficient, meaning it makes effective use of data collected from the environment. Instead of frequently discarding old samples, PPO reuses them, reducing the amount of data needed to achieve high performance. This contrasts with other algorithms that might require more frequent and extensive data collection to perform similarly well, making PPO more practical in scenarios where data collection is expensive or time-consuming.
+
 9. Model evaluation: [below](#evaluation)
 
 #### putting everything together
